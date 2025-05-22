@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Sudoku Game with AI Generator</title>
+  <style>
+    body { font-family: Arial, sans-serif; text-align: center; margin: 20px; }
+    table { border-collapse: collapse; margin: auto; }
+    td { border: 1px solid #999; width: 40px; height: 40px; }
+    input {
+      width: 38px; height: 38px;
+      text-align: center; font-size: 18px;
+      border: none; outline: none;
+      background-color: white;
+      color: black;
+      font-weight: normal;
+      transition: background-color 0.3s ease;
+    }
+    input[disabled] {
+      background-color: #e0e0e0;
+      color: #333;
+      font-weight: bold;
+      cursor: default;
+    }
+    input.correct {
+      background-color: #b2f2bb;
+      color: #1a5d11;
+      font-weight: bold;
+    }
+    input.incorrect {
+      background-color: #f2b2b2;
+      color: #7a0000;
+      font-weight: bold;
+    }
+    .bold-border-top { border-top: 3px solid black; }
+    .bold-border-left { border-left: 3px solid black; }
+    .bold-border-right { border-right: 3px solid black; }
+    .bold-border-bottom { border-bottom: 3px solid black; }
+    button {
+      margin: 10px 5px;
+      padding: 8px 16px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+    #result {
+      font-weight: bold;
+      font-size: 18px;
+      margin-top: 10px;
+      min-height: 24px;
+    }
+    #confetti {
+      position: fixed;
+      pointer-events: none;
+      top: 0; left: 0; width: 100%; height: 100%;
+      overflow: visible;
+      z-index: 9999;
+    }
+    .confetti-piece {
+      position: absolute;
+      width: 10px; height: 10px;
+      opacity: 0.8;
+      border-radius: 3px;
+      animation-name: fall, sway;
+      animation-timing-function: linear, ease-in-out;
+      animation-iteration-count: infinite, infinite;
+    }
+    @keyframes fall {
+      0% { transform: translateY(-10px); opacity: 1; }
+      100% { transform: translateY(100vh); opacity: 0; }
+    }
+    @keyframes sway {
+      0%, 100% { transform: translateX(0); }
+      50% { transform: translateX(20px); }
+    }
+  </style>
+</head>
+<body>
+  <h1>Sudoku</h1>
+  <table id="sudoku-board"></table>
+  <div>
+    <button onclick="checkSolution()">Check</button>
+    <button onclick="loadNewAIPuzzle()">New Puzzle</button>
+  </div>
+  <p id="result"></p>
+  <div id="confetti"></div>
+
+  <script>
+    const board = document.getElementById('sudoku-board');
+    const result = document.getElementById('result');
+    const confettiContainer = document.getElementById('confetti');
+
+    let solution = [];
+    let puzzle = [];
+
+    function shuffle(array) {
+      for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+      }
+    }
+
+    function isValid(board, row, col, num) {
+      for (let i = 0; i < 9; i++) {
+        if (board[row][i] === num || board[i][col] === num) return false;
+      }
+      const startRow = Math.floor(row / 3) * 3;
+      const startCol = Math.floor(col / 3) * 3;
+      for (let r = startRow; r < startRow + 3; r++) {
+        for (let c = startCol; c < startCol + 3; c++) {
+          if (board[r][c] === num) return false;
+        }
+      }
+      return true;
+    }
+
+    function generateCompleteSolution(board, row = 0, col = 0) {
+      if (row === 9) return true;
+      if (col === 9) return generateCompleteSolution(board, row + 1, 0);
+      if (board[row][col] !== 0) return generateCompleteSolution(board, row, col + 1);
+
+      let numbers = [1,2,3,4,5,6,7,8,9];
+      shuffle(numbers);
+      for (let num of numbers) {
+        if (isValid(board, row, col, num)) {
+          board[row][col] = num;
+          if (generateCompleteSolution(board, row, col + 1)) return true;
+          board[row][col] = 0;
+        }
+      }
+      return false;
+    }
+
+    function removeNumbers(board, attempts = 40) {
+      let puzzle = board.map(row => row.slice());
+      while (attempts > 0) {
+        let row = Math.floor(Math.random() * 9);
+        let col = Math.floor(Math.random() * 9);
+        if (puzzle[row][col] !== 0) {
+          puzzle[row][col] = 0;
+          attempts--;
+        }
+      }
+      return puzzle;
+    }
+
+    function createBoardUI(puzzle) {
+      board.innerHTML = '';
+      for (let r = 0; r < 9; r++) {
+        const rowEl = document.createElement('tr');
+        for (let c = 0; c < 9; c++) {
+          const cell = document.createElement('td');
+          if (r % 3 === 0) cell.classList.add('bold-border-top');
+          if (c % 3 === 0) cell.classList.add('bold-border-left');
+          if (r === 8) cell.classList.add('bold-border-bottom');
+          if (c === 8) cell.classList.add('bold-border-right');
+
+          const input = document.createElement('input');
+          input.setAttribute('maxlength', '1');
+          input.setAttribute('type', 'text');
+          input.setAttribute('inputmode', 'numeric');
+          input.dataset.row = r;
+          input.dataset.col = c;
+
+          if (puzzle[r][c] !== 0) {
+            input.value = puzzle[r][c];
+            input.disabled = true;
+          }
+
+          input.addEventListener('input', (e) => {
+            const val = e.target.value;
+            if (!/^[1-9]$/.test(val)) {
+              e.target.value = '';
+            }
+          });
+
+          cell.appendChild(input);
+          rowEl.appendChild(cell);
+        }
+        board.appendChild(rowEl);
+      }
+      result.textContent = '';
+      clearConfetti();
+    }
+
+    function loadNewAIPuzzle() {
+      let newBoard = Array(9).fill(0).map(() => Array(9).fill(0));
+      generateCompleteSolution(newBoard);
+      solution = newBoard;
+      puzzle = removeNumbers(newBoard, 40);
+      createBoardUI(puzzle);
+    }
+
+    function checkSolution() {
+      const inputs = board.querySelectorAll('input');
+      let allCorrect = true;
+
+      inputs.forEach(input => {
+        const r = parseInt(input.dataset.row);
+        const c = parseInt(input.dataset.col);
+        const val = input.value;
+
+        if (val === '') {
+          input.classList.remove('correct', 'incorrect');
+          allCorrect = false;
+        } else if (parseInt(val) === solution[r][c]) {
+          input.classList.add('correct');
+          input.classList.remove('incorrect');
+        } else {
+          input.classList.add('incorrect');
+          input.classList.remove('correct');
+          allCorrect = false;
+        }
+      });
+
+      if (allCorrect) {
+        result.textContent = 'You Win! Congratulations!';
+        runConfetti();
+      } else {
+        result.textContent = 'Some cells are incorrect or empty. Keep trying!';
+        clearConfetti();
+      }
+    }
+
+    function runConfetti() {
+      clearConfetti();
+      for (let i = 0; i < 100; i++) {
+        const confetti = document.createElement('div');
+        confetti.classList.add('confetti-piece');
+        confetti.style.backgroundColor = randomColor();
+        confetti.style.left = Math.random() * window.innerWidth + 'px';
+        confetti.style.animationDuration = (Math.random() * 3 + 2) + 's';
+        confetti.style.animationDelay = (Math.random() * 3) + 's';
+        confetti.style.width = confetti.style.height = (Math.random() * 7 + 7) + 'px';
+        confetti.style.borderRadius = Math.random() > 0.5 ? '0' : '50%';
+        confettiContainer.appendChild(confetti);
+      }
+      setTimeout(clearConfetti, 5000);
+    }
+
+    function clearConfetti() {
+      confettiContainer.innerHTML = '';
+    }
+
+    function randomColor() {
+      const colors = ['#FFC107', '#FF5722', '#4CAF50', '#2196F3', '#E91E63', '#00BCD4'];
+      return colors[Math.floor(Math.random() * colors.length)];
+    }
+
+    loadNewAIPuzzle();
+  </script>
+</body>
+</html>
